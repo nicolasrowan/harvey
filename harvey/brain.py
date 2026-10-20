@@ -18,10 +18,15 @@ from harvey.state import StateManager
 
 logger = logging.getLogger("harvey.brain")
 
-from harvey.paths import PROJECT_ROOT
+from harvey.paths import PROJECT_ROOT, find_knowledge_file
 
 PROMPTS_DIR = PROJECT_ROOT / "prompts"
 SKILLS_DIR = PROJECT_ROOT / "skills"
+
+# Optional skill every agent reads when a profile (or a fork) provides it:
+# rules that hold for everything Harvey writes, such as the language to
+# write in or claims the company never makes. Missing is normal.
+HOUSE_RULES_SKILL = "house_rules"
 
 # Subprocess safety limits
 DEFAULT_TIMEOUT_SECONDS = 300  # a single Claude call should never hang forever
@@ -658,10 +663,19 @@ class Brain:
         return calls < max_daily_calls
 
     def load_prompt(self, prompt_name: str, **kwargs) -> str:
-        """Load a prompt template from the prompts/ directory and fill in variables."""
-        prompt_file = PROMPTS_DIR / f"{prompt_name}.md"
+        """Load a prompt template from the prompts/ directory and fill in variables.
+
+        A profile's prompts/ (then profiles/_shared/prompts/) wins over the
+        shipped template of the same name.
+        """
+        prompt_file = (
+            find_knowledge_file("prompts", prompt_name)
+            or PROMPTS_DIR / f"{prompt_name}.md"
+        )
         try:
-            template = prompt_file.read_text()
+            # Explicit UTF-8: Windows would otherwise decode with the ANSI
+            # codepage and mangle any non-English knowledge.
+            template = prompt_file.read_text(encoding="utf-8")
         except FileNotFoundError:
             logger.warning(f"Prompt file not found: {prompt_file}")
             return ""
@@ -679,10 +693,17 @@ class Brain:
         return template
 
     def load_skill(self, skill_name: str) -> str:
-        """Load a skill knowledge file from the skills/ directory."""
-        skill_file = SKILLS_DIR / f"{skill_name}.md"
+        """Load a skill knowledge file from the skills/ directory.
+
+        A profile's skills/ (then profiles/_shared/skills/) wins over the
+        shipped skill of the same name.
+        """
+        skill_file = (
+            find_knowledge_file("skills", skill_name)
+            or SKILLS_DIR / f"{skill_name}.md"
+        )
         try:
-            return skill_file.read_text()
+            return skill_file.read_text(encoding="utf-8")
         except FileNotFoundError:
             logger.warning(f"Skill file not found: {skill_file}")
             return ""
@@ -709,6 +730,9 @@ class Brain:
         skill_names = skill_map.get(agent_name, [])
         if not skill_names:
             return ""
+        if find_knowledge_file("skills", HOUSE_RULES_SKILL):
+            # First, so the rules frame everything after them.
+            skill_names = [HOUSE_RULES_SKILL, *skill_names]
 
         sections = []
         for name in skill_names:

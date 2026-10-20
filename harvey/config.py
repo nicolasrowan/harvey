@@ -10,7 +10,7 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
 
-from harvey.paths import PROJECT_ROOT
+from harvey.paths import PROFILE, PROFILE_DIR, PROJECT_ROOT
 
 logger = logging.getLogger("harvey.config")
 
@@ -324,7 +324,7 @@ def load_config(config_path: str | None = None) -> HarveyConfig:
         config_path = _find_config_file()
 
     try:
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
     except FileNotFoundError:
         raise ConfigFileNotFoundError(
@@ -371,7 +371,7 @@ def load_brain_config(config_path: str | None = None) -> BrainConfig:
         except ConfigFileNotFoundError:
             return BrainConfig()
     try:
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
     except FileNotFoundError:
         return BrainConfig()
@@ -391,8 +391,14 @@ def load_brain_config(config_path: str | None = None) -> BrainConfig:
 
 
 def load_env() -> EnvConfig:
-    """Load environment variables from .env file."""
+    """Load environment variables from .env file.
+
+    With a profile active, ``profiles/<name>/.env`` is read after the shared
+    one and wins, so a product can bring its own mailbox or keys.
+    """
     load_dotenv()
+    if PROFILE:
+        load_dotenv(PROFILE_DIR / ".env", override=True)
     env = EnvConfig(
         instantly_api_key=os.getenv("INSTANTLY_API_KEY", "").strip(),
         dataforseo_login=os.getenv("DATAFORSEO_LOGIN", "").strip(),
@@ -428,7 +434,23 @@ def _find_config_file() -> str:
     carry a real product configuration (trained on an actual company) while
     the tracked ``harvey.yaml`` stays an untrained template — nobody
     publishes their positioning, pricing, and prospect targeting by accident.
+
+    With a profile active only that profile's directory is searched: falling
+    back to another product's config would prospect for the wrong product.
     """
+    if PROFILE:
+        candidates = [
+            PROFILE_DIR / "harvey.local.yaml",
+            PROFILE_DIR / "harvey.yaml",
+        ]
+        for path in candidates:
+            if path.exists():
+                return str(path)
+        raise ConfigFileNotFoundError(
+            f"Profile '{PROFILE}' has no harvey.yaml in {PROFILE_DIR}. "
+            f"Create it, or run 'harvey --profile {PROFILE} setup'."
+        )
+
     candidates = [
         Path.cwd() / "harvey.local.yaml",
         PROJECT_ROOT / "harvey.local.yaml",

@@ -25,13 +25,15 @@ from fastapi.responses import (
 logger = logging.getLogger("harvey.dashboard")
 
 from harvey import dashboard_auth as auth  # noqa: E402
-from harvey.paths import PROJECT_ROOT  # noqa: E402
-DB_PATH = PROJECT_ROOT / "data" / "harvey.db"
+from harvey.paths import (  # noqa: E402
+    DATA_DIR, PROFILE_DIR, PROJECT_ROOT, find_knowledge_file,
+)
+DB_PATH = DATA_DIR / "harvey.db"
 ENV_FILE = PROJECT_ROOT / ".env"
-CONFIG_FILE = PROJECT_ROOT / "harvey.yaml"
-PID_FILE = PROJECT_ROOT / "data" / "harvey.pid"
-LOG_FILE = PROJECT_ROOT / "data" / "harvey.log"
-TOKEN_FILE = PROJECT_ROOT / "data" / "dashboard-token"
+CONFIG_FILE = PROFILE_DIR / "harvey.yaml"
+PID_FILE = DATA_DIR / "harvey.pid"
+LOG_FILE = DATA_DIR / "harvey.log"
+TOKEN_FILE = DATA_DIR / "dashboard-token"
 
 
 def _resolve_config_file() -> Path:
@@ -204,12 +206,12 @@ async def get_setup_status():
 
     if provider == "gmail":
         provider_done = _has("GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET") and \
-            (PROJECT_ROOT / "data" / "gmail_token.json").is_file()
+            (DATA_DIR / "gmail_token.json").is_file()
         provider_help = ("Set GMAIL_CLIENT_ID/SECRET in Settings, then run "
                          "'harvey gmail auth' in your terminal.")
     elif provider == "microsoft":
         provider_done = _has("M365_CLIENT_ID") and \
-            (PROJECT_ROOT / "data" / "m365_token.json").is_file()
+            (DATA_DIR / "m365_token.json").is_file()
         provider_help = ("Set M365_CLIENT_ID and M365_TENANT_ID in .env, then run "
                          "'harvey microsoft auth' in your terminal.")
     elif provider == "smtp":
@@ -241,7 +243,7 @@ async def get_setup_status():
     config_path = _resolve_config_file()
     if config_path.exists():
         try:
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 cfg = yaml.safe_load(f)
             company = cfg.get("persona", {}).get("company", "")
             product = cfg.get("product", {}).get("name", "")
@@ -256,7 +258,7 @@ async def get_setup_status():
     })
 
     # 6. Product trained
-    product_trained = (PROJECT_ROOT / "skills" / "product_knowledge.md").exists()
+    product_trained = find_knowledge_file("skills", "product_knowledge") is not None
     checks.append({
         "id": "product_trained", "label": "Product knowledge trained",
         "done": product_trained,
@@ -301,7 +303,7 @@ async def get_setup_status():
 def _current_provider() -> str:
     """Read channels.email.provider from the active config (best-effort)."""
     try:
-        with open(_resolve_config_file()) as f:
+        with open(_resolve_config_file(), encoding="utf-8") as f:
             cfg = yaml.safe_load(f) or {}
         return ((cfg.get("channels") or {}).get("email") or {}).get("provider", "instantly")
     except Exception:
@@ -328,7 +330,7 @@ async def get_settings():
         return bool((env_vars.get(k) or "").strip())
 
     # Gmail is authorized once harvey gmail auth has stored a token file.
-    gmail_token = (PROJECT_ROOT / "data" / "gmail_token.json").is_file()
+    gmail_token = (DATA_DIR / "gmail_token.json").is_file()
 
     return {
         "provider": _current_provider(),
@@ -512,7 +514,7 @@ async def start_harvey():
         return {"success": False, "message": "Harvey is already running."}
 
     # Ensure data dir exists
-    (PROJECT_ROOT / "data").mkdir(parents=True, exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
         log_handle = open(LOG_FILE, "a")

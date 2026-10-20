@@ -22,7 +22,7 @@ from harvey.state import StateManager
 
 logger = logging.getLogger("harvey.trainer")
 
-from harvey.paths import PROJECT_ROOT
+from harvey.paths import PROFILE_DIR
 
 
 def _normalize_start_url(url: str) -> str:
@@ -409,12 +409,14 @@ class Trainer:
         print("[6/6] Building configuration and product knowledge...")
         config = self._build_config(product_info, icp_info, objections, domain)
 
-        # Write config (relative paths resolve against the project root,
-        # so training works no matter what directory it's launched from)
+        # Write config (relative paths resolve against the active profile's
+        # directory, the project root without one, so training works no
+        # matter what directory it's launched from)
         config_path = Path(output_path)
         if not config_path.is_absolute():
-            config_path = PROJECT_ROOT / config_path
-        with open(config_path, "w") as f:
+            config_path = PROFILE_DIR / config_path
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
         # Generate product knowledge skill
@@ -667,8 +669,9 @@ Do NOT pursue prospects who:
 {product_info.get('tone', 'professional, consultative, confident')}
 """
 
-        skills_path = PROJECT_ROOT / "skills" / "product_knowledge.md"
-        skills_path.write_text(knowledge)
+        skills_path = PROFILE_DIR / "skills" / "product_knowledge.md"
+        skills_path.parent.mkdir(parents=True, exist_ok=True)
+        skills_path.write_text(knowledge, encoding="utf-8")
         print(f"      Generated: skills/product_knowledge.md")
 
     async def _generate_battle_cards(self, product_info: dict, competitive_intel: dict):
@@ -715,8 +718,9 @@ What prospects do instead of buying a solution like ours:
 ---
 """
 
-        skills_path = PROJECT_ROOT / "skills" / "competitive_intel.md"
-        skills_path.write_text(cards)
+        skills_path = PROFILE_DIR / "skills" / "competitive_intel.md"
+        skills_path.parent.mkdir(parents=True, exist_ok=True)
+        skills_path.write_text(cards, encoding="utf-8")
         print(f"      Generated: skills/competitive_intel.md")
 
     def _build_config(

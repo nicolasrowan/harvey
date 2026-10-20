@@ -225,6 +225,7 @@ Users will come back with questions and tasks. Common ones:
 - **"Harvey isn't finding the right people"** → Check the ICP config in `harvey.yaml`. Adjust industries, titles, company_size, geography.
 - **"I want to change what Harvey says"** → Skills are in `skills/`, prompts are in `prompts/`. Both are plain markdown files. Edit them directly.
 - **"Train Harvey on a different product"** → `harvey train <new-url>`
+- **"I sell several products"** → one profile per product: `profiles/<name>/harvey.yaml` (+ `skills/product_knowledge.md`), then `harvey --profile <name> <command>`. Each profile has its own database in `profiles/<name>/data/`. Shared rules for every profile go in `profiles/_shared/skills/house_rules.md`. `harvey profiles` lists them. See "Several products: profiles" in the README.
 - **"How do I see the database?"** → It's at `data/harvey.db`. They can open it with any SQLite tool, or ask you to query it.
 - **"I just want the prospect list"** → `harvey export` writes a sequencer-ready CSV (verified/risky emails only; `--all` for everything). Also available as Export buttons on the dashboard's Contacts tab. Harvey is valuable purely as a list-builder even if the user never lets it send.
 

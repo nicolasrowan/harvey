@@ -16,10 +16,10 @@ from harvey.state import StateManager
 
 logger = logging.getLogger("harvey.setup")
 
-from harvey.paths import PROJECT_ROOT
+from harvey.paths import PROFILE_DIR, PROJECT_ROOT
 ENV_FILE = PROJECT_ROOT / ".env"
 ENV_EXAMPLE = PROJECT_ROOT / ".env.example"
-CONFIG_FILE = PROJECT_ROOT / "harvey.yaml"
+CONFIG_FILE = PROFILE_DIR / "harvey.yaml"
 
 
 def _print_harvey(message: str):
@@ -624,13 +624,14 @@ class SetupWizard:
         if self.config:
             self.config["brain"] = brain_section(self.brain_config)
         if self.config and not CONFIG_FILE.exists():
-            with open(CONFIG_FILE, "w") as f:
+            CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 yaml.dump(self.config, f, default_flow_style=False, sort_keys=False)
             logger.info(f"Wrote {CONFIG_FILE}")
         elif self.config:
             # Config already exists (from trainer), update behavior settings only
             try:
-                with open(CONFIG_FILE) as f:
+                with open(CONFIG_FILE, encoding="utf-8") as f:
                     existing = yaml.safe_load(f) or {}
                 existing["usage"] = self.config.get("usage", existing.get("usage", {}))
                 existing["brain"] = self.config["brain"]
@@ -641,7 +642,7 @@ class SetupWizard:
                         existing["channels"]["email"]["max_daily_sends"] = (
                             self.config["channels"]["email"].get("max_daily_sends", 50)
                         )
-                with open(CONFIG_FILE, "w") as f:
+                with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                     yaml.dump(existing, f, default_flow_style=False, sort_keys=False)
             except Exception:
                 pass

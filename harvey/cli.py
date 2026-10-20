@@ -346,6 +346,10 @@ def cmd_export(args):
     from harvey.state import StateManager
     from harvey.export import export_prospects_csv
 
+    if not args.out:
+        from harvey.paths import PROFILE
+        args.out = f"prospects-{PROFILE}.csv" if PROFILE else "prospects.csv"
+
     async def _export():
         state = StateManager()
         await state.init_db()
@@ -664,15 +668,79 @@ def cmd_sending(args):
     asyncio.run(_run())
 
 
+def _select_profile(argv: list[str]) -> list[str]:
+    """Apply ``--profile NAME`` before any harvey module reads its paths.
+
+    harvey.paths resolves the profile once, at import, so the flag is turned
+    into HARVEY_PROFILE here, ahead of argparse and every other import. The
+    environment also carries it to the heartbeat the dashboard spawns.
+    """
+    import os
+
+    rest = []
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        name = None
+        if arg in ("--profile", "--perfil", "-p"):
+            if i + 1 >= len(argv):
+                print(f"  {arg} needs a profile name, e.g. 'harvey {arg} cargo status'.")
+                sys.exit(2)
+            name = argv[i + 1]
+            i += 2
+        elif arg.startswith(("--profile=", "--perfil=")):
+            name = arg.split("=", 1)[1]
+            i += 1
+        else:
+            rest.append(arg)
+            i += 1
+            continue
+        os.environ["HARVEY_PROFILE"] = name
+    return rest
+
+
+def cmd_profiles(args):
+    """List the profiles (one per product) and which one is active."""
+    from harvey.paths import PROFILE, PROFILES_DIR, list_profiles
+
+    names = list_profiles()
+    if not names:
+        print(f"\n  No profiles in {PROFILES_DIR}.")
+        print("  Create profiles/<name>/harvey.yaml, then: harvey --profile <name> status\n")
+        return
+    print(f"\n  Profiles in {PROFILES_DIR}:\n")
+    for name in names:
+        marker = "*" if name == PROFILE else " "
+        print(f"  {marker} {name}")
+    print("\n  Use one with: harvey --profile <name> <command>\n")
+
+
 def main():
-    from harvey.paths import PROJECT_ROOT
+    argv = _select_profile(sys.argv[1:])
+
+    try:
+        from harvey.paths import PROFILE, PROFILE_DIR, PROJECT_ROOT
+    except ValueError as e:  # ProfileError: a name that isn't a safe slug
+        print(f"\n  {e}\n")
+        sys.exit(2)
+
     project_root = str(PROJECT_ROOT)
+    if PROFILE and not PROFILE_DIR.is_dir():
+        print(f"\n  Profile '{PROFILE}' not found: {PROFILE_DIR} doesn't exist.")
+        print("  See the available ones with: harvey profiles\n")
+        sys.exit(2)
 
     parser = argparse.ArgumentParser(
         prog="harvey",
         description="Harvey — Autonomous AI Sales Agent. Always Be Closing.",
+        epilog="Global option: --profile NAME (or -p) runs any command against "
+               "profiles/NAME/ — its own harvey.yaml, database and knowledge.",
     )
     subparsers = parser.add_subparsers(dest="command")
+
+    # harvey profiles
+    sub = subparsers.add_parser("profiles", help="List product profiles")
+    sub.set_defaults(func=cmd_profiles)
 
     # harvey install
     sub = subparsers.add_parser("install", help="Install dependencies")
@@ -730,7 +798,8 @@ def main():
     sub = subparsers.add_parser(
         "export", help="Export prospects as a sequencer-ready CSV"
     )
-    sub.add_argument("--out", default="prospects.csv", help="Output file (default: prospects.csv)")
+    sub.add_argument("--out", default="",
+                     help="Output file (default: prospects.csv, or prospects-<profile>.csv)")
     sub.add_argument(
         "--email-status", default="",
         help="Comma-separated statuses to include (default: verified,risky)",
@@ -806,7 +875,7 @@ def main():
     sub.add_argument("--days", type=int, default=30, help="Breakdown window (default: 30)")
     sub.set_defaults(func=cmd_usage)
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     args._project_root = project_root
 
     if args.command is None:

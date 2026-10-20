@@ -413,10 +413,34 @@ writer:       { humanizer }   # optional; true adds one editing pass per batch u
 
 If `harvey.local.yaml` exists it wins. It's gitignored, so a fork can carry real product configuration while the tracked `harvey.yaml` stays a template — nobody publishes their positioning and pricing by accident.
 
+### Several products: profiles
+
+One checkout can sell several products, each with its own targeting, knowledge and pipeline. A profile is a directory under `profiles/` (gitignored — keep it in a private repo of its own):
+
+```
+profiles/
+  _shared/skills/house_rules.md     # optional: rules every agent reads first (language, claims you never make)
+  _shared/skills/*.md               # optional: overrides of shipped skills, for every profile
+  cargo/harvey.yaml                 # the product's config (harvey.local.yaml still wins)
+  cargo/skills/product_knowledge.md # its knowledge; any skill or prompt here overrides the shared one
+  cargo/.env                        # optional: overrides the root .env (its own mailbox, say)
+  cargo/data/                       # its own database, tokens, logs and dashboard token
+```
+
+```bash
+harvey profiles                       # list them
+harvey --profile cargo status         # any command, against that profile (-p for short)
+harvey -p cargo train https://...     # writes profiles/cargo/harvey.yaml + skills/
+harvey -p cargo dashboard --port 5556 # one dashboard per profile, on its own port
+```
+
+Knowledge resolves most specific first: `profiles/<name>/`, then `profiles/_shared/`, then the files that ship with Harvey. Without `--profile` nothing changes. A profile never falls back to another config: if `profiles/<name>/harvey.yaml` is missing, Harvey stops instead of prospecting for the wrong product. `HARVEY_PROFILE` and `HARVEY_PROFILES_DIR` do the same as the flag and move the profiles directory.
+
 ### Commands
 
 ```bash
 harvey run                   # the heartbeat loop
+harvey profiles              # list product profiles; any command takes --profile NAME
 harvey dashboard             # web UI at 127.0.0.1:5555 (--url: print the unlock link)
 harvey signals               # review/confirm what to prospect against
 harvey discover              # find businesses; --providers / --estimate
