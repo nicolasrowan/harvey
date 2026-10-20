@@ -584,6 +584,41 @@ def cmd_discover(args):
     asyncio.run(_discover())
 
 
+def cmd_import(args):
+    """Load companies you already have from a CSV or Excel file. Free."""
+    from harvey.state import StateManager
+    from harvey.collectors.importer import import_companies
+
+    path = Path(args.file)
+    if not path.is_file():
+        print(f"\n  File not found: {path}\n")
+        sys.exit(2)
+
+    async def _import():
+        state = StateManager()
+        await state.init_db()
+        report = await import_companies(state, path, sheet=args.sheet,
+                                        industry=args.industry, limit=args.limit)
+        print(f"\n  IMPORT — {report.rows} rows from {path.name}")
+        if report.columns:
+            cols = ", ".join(f"{k}←{v!r}" for k, v in report.columns.items())
+            print(f"    columns: {cols}")
+        print(f"    {report.new_companies} new companies, "
+              f"{report.known_companies} already known")
+        if report.junk:
+            print(f"    {report.junk} filtered out as directories/aggregators")
+        if report.skipped:
+            print(f"    {report.skipped} rows skipped (no name and no website)")
+        for err in report.errors[:5]:
+            print(f"    ! {err}")
+        if report.new_companies:
+            print("\n  Next: harvey profile   (reads their websites, free)\n")
+        else:
+            print()
+
+    asyncio.run(_import())
+
+
 def cmd_signals(args):
     """Review the signal vocabulary — Harvey proposes, you confirm.
 
@@ -848,6 +883,15 @@ def main():
     sub.add_argument("--no-profile", action="store_true",
                      help="Don't profile what was found (profiling is free)")
     sub.set_defaults(func=cmd_discover)
+
+    sub = subparsers.add_parser(
+        "import", help="Load companies from a CSV or Excel file (free)")
+    sub.add_argument("file", help=".csv or .xlsx with a name and/or website column")
+    sub.add_argument("--sheet", default="", help="Excel sheet name (default: the first)")
+    sub.add_argument("--industry", default="",
+                     help="Industry for rows that don't carry one")
+    sub.add_argument("--limit", type=int, default=0, help="Only the first N rows")
+    sub.set_defaults(func=cmd_import)
 
     sub = subparsers.add_parser(
         "profile", help="Read discovered companies' websites (free, no Claude)")

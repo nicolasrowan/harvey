@@ -445,6 +445,7 @@ harvey dashboard             # web UI at 127.0.0.1:5555 (--url: print the unlock
 harvey signals               # review/confirm what to prospect against
 harvey discover              # find businesses; --providers / --estimate
 harvey profile               # read discovered companies' sites (free)
+harvey import leads.xlsx     # load companies you already have (.csv/.xlsx, Spanish or English headers; free)
 harvey train <url>           # learn a product from its website (--provider codex --model gpt-5.5)
 harvey status                # pipeline summary
 harvey usage                 # active provider's quota + per-agent tokens

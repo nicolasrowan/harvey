@@ -54,6 +54,9 @@ JUNK_DOMAIN_PATTERNS = tuple(re.compile(p, re.I) for p in (
     r"(^|\.)(indeed|glassdoor|ziprecruiter|craigslist|zillow|realtor)\.",
     r"(^|\.)(mapquest|foursquare|tripadvisor|trustpilot|birdeye|expertise)\.",
     r"(directory|listings?|find-?a-|top\d+|best-?of)\.",
+    # Spanish directories, company registries and classifieds
+    r"(^|\.)(paginasamarillas|einforma|axesor|infoempresa|empresite|infocif|iberinform)\.",
+    r"(^|\.)(guiaempresas|cylex|librebor|habitissimo|milanuncios|infojobs|wallapop)\.",
     # media & reference
     r"(^|\.)(wikipedia|reddit|quora|medium|substack|forbes|inc|entrepreneur)\.",
     r"(news|magazine|journal|gazette|tribune|herald)\.(com|org|net)$",

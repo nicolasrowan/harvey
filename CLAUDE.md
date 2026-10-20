@@ -272,6 +272,7 @@ harvey gmail test            # Verify the Gmail connection
 harvey outbox                # Review queued emails; --approve <id> / --approve-all / --reject <id>
 harvey signals               # The signal vocabulary; --confirm / --reject CODES (or 'free' / 'all')
 harvey discover              # Find businesses; --providers / --estimate / --provider <key>
+harvey import <file>         # Load companies from a .csv/.xlsx you already have (free)
 harvey sending pause|resume  # Kill switch for all outbound
 ```
 
