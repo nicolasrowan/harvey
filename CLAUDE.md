@@ -273,6 +273,7 @@ harvey outbox                # Review queued emails; --approve <id> / --approve-
 harvey signals               # The signal vocabulary; --confirm / --reject CODES (or 'free' / 'all')
 harvey discover              # Find businesses; --providers / --estimate / --provider <key>
 harvey import <file>         # Load companies from a .csv/.xlsx you already have (free)
+harvey approach              # Research-only: fit, hook, call opener and first message per company -> .xlsx (sends nothing)
 harvey sending pause|resume  # Kill switch for all outbound
 ```
 

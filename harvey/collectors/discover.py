@@ -325,6 +325,7 @@ class Business:
     source_url: str = ""
     provider: str = ""
     raw_title: str = ""             # SERP evidence for junk filtering before normalization
+    notes: str = ""                 # what the source already knew (imported CRM notes)
 
     def identity(self) -> str:
         return self.domain or self.external_id
@@ -964,6 +965,7 @@ async def _upsert(state, biz: Business, query: DiscoveryQuery) -> tuple[str, boo
         source=f"discover:{biz.provider}",
         source_url=biz.source_url,
         external_id=biz.external_id,
+        notes=biz.notes,
     )
     return await state.add_company(company), True
 

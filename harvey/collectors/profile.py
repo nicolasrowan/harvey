@@ -251,6 +251,14 @@ class ProfileCollector:
     async def _get(self, url: str) -> str:
         try:
             resp = await self._client.get(url)
+            if resp.status_code == 403:
+                # Some firewalls block one browser signature and let another
+                # through: one retry as a different browser before calling a
+                # live site unreachable.
+                current = self._client.headers.get("User-Agent")
+                other = next((ua for ua in USER_AGENTS if ua != current), None)
+                if other:
+                    resp = await self._client.get(url, headers={"User-Agent": other})
         except (httpx.HTTPError, ValueError) as e:
             logger.debug(f"fetch failed {url}: {e}")
             return ""

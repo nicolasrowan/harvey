@@ -619,6 +619,45 @@ def cmd_import(args):
     asyncio.run(_import())
 
 
+def cmd_approach(args):
+    """Draft how to approach each company. Nothing is queued or sent."""
+    from harvey.approach import approach_rows, draft_approaches, write_export
+    from harvey.brain import Brain
+    from harvey.config import load_config
+    from harvey.paths import PROFILE
+    from harvey.state import StateManager
+
+    async def _approach():
+        config = load_config()
+        state = StateManager()
+        await state.init_db()
+        if args.limit:
+            brain = Brain(state, config.brain)
+            print(f"\n  APPROACH — up to {args.limit} companies, {args.batch} per call "
+                  f"({brain.provider_label}). Nothing is sent.\n")
+            report = await draft_approaches(
+                state, brain, config, limit=args.limit, batch=args.batch,
+                industry=args.industry, redo=args.redo, spread=args.spread)
+            print(f"    {report.drafted}/{report.candidates} approaches drafted, "
+                  f"{report.sites_read} sites read, {report.calls} calls")
+            if report.stopped:
+                print(f"    stopped: {report.stopped}")
+            for err in report.errors[:5]:
+                print(f"    ! {err}")
+        if args.export or not args.limit:
+            out = args.export or (f"enfoques-{PROFILE}.xlsx" if PROFILE else "enfoques.xlsx")
+            rows = await approach_rows(state, fit=args.fit)
+            try:
+                path = write_export(rows, out)
+            except ImportError:
+                path = write_export(rows, Path(out).with_suffix(".csv"))
+            print(f"\n  Exported {len(rows)} approach(es) to {path}\n")
+        else:
+            print("\n  See them with: harvey approach --limit 0 --export enfoques.xlsx\n")
+
+    asyncio.run(_approach())
+
+
 def cmd_signals(args):
     """Review the signal vocabulary — Harvey proposes, you confirm.
 
@@ -892,6 +931,23 @@ def main():
                      help="Industry for rows that don't carry one")
     sub.add_argument("--limit", type=int, default=0, help="Only the first N rows")
     sub.set_defaults(func=cmd_import)
+
+    sub = subparsers.add_parser(
+        "approach", help="Draft how to approach each company (fit, hook, opener, "
+                         "first message). Nothing is sent")
+    sub.add_argument("--limit", type=int, default=10,
+                     help="Companies to draft this run (default: 10; 0 = only export)")
+    sub.add_argument("--batch", type=int, default=5, help="Companies per model call (default: 5)")
+    sub.add_argument("--industry", default="", help="Only this industry, as imported")
+    sub.add_argument("--spread", action="store_true",
+                     help="Round-robin across industries (good for a first look)")
+    sub.add_argument("--redo", action="store_true", help="Redraft companies that have one")
+    sub.add_argument("--export", default="",
+                     help="Write all approaches to .xlsx or .csv "
+                          "(default with --limit 0: enfoques-<profile>.xlsx)")
+    sub.add_argument("--fit", default="",
+                     help="Export only these fits, e.g. alta,media")
+    sub.set_defaults(func=cmd_approach)
 
     sub = subparsers.add_parser(
         "profile", help="Read discovered companies' websites (free, no Claude)")

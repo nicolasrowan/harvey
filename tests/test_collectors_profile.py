@@ -289,3 +289,29 @@ async def test_profile_uses_homepage_brand_over_service_location_title(
         await c.run([{"id": cid, "name": current, "domain": domain}])
     assert (await state.get_company_by_domain(domain)).name == brand
     assert (await state.get_prospect(pid)).company == brand
+
+
+@pytest.mark.asyncio
+async def test_get_retries_a_403_as_another_browser():
+    """Some firewalls block one browser signature and not the other: a live
+    site must not be reported unreachable because of which one we drew."""
+    import httpx
+    from harvey.collectors import profile as profile_mod
+
+    blocked = profile_mod.USER_AGENTS[0]
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers["User-Agent"])
+        if request.headers["User-Agent"] == blocked:
+            return httpx.Response(403, headers={"content-type": "text/html"}, text="no")
+        return httpx.Response(200, headers={"content-type": "text/html"}, text="<p>hola</p>")
+
+    collector = ProfileCollector(state=None)
+    collector._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), headers={"User-Agent": blocked})
+    try:
+        assert await collector._get("https://example.es") == "<p>hola</p>"
+    finally:
+        await collector._client.aclose()
+    assert seen[0] == blocked and seen[1] != blocked

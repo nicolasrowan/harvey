@@ -8,7 +8,10 @@ model call.
 
 Headers are matched loosely (case, accents and spacing ignored), in English
 or Spanish: name/empresa, website/web/dominio, phone/teléfono,
-address/dirección, city/localidad/provincia, industry/sector.
+address/dirección, city/localidad/provincia, industry/sector. What the list
+already knows about a company (contact, email, status, notes from earlier
+calls, next step) is kept in its notes, so later stages build on it instead
+of starting cold.
 """
 
 import csv
@@ -35,7 +38,19 @@ COLUMNS = {
                  "poblacion", "provincia", "zona", "region"),
     "category": ("industry", "category", "sector", "categoria", "actividad",
                  "subsector", "tipo"),
+    # Kept as notes, in this order and with these labels.
+    "contact": ("contact", "contact name", "contacto", "persona de contacto",
+                "persona contacto", "full name"),
+    "email": ("email", "e mail", "correo", "correo electronico", "mail"),
+    "status": ("status", "estado", "stage", "etapa"),
+    "next_step": ("next step", "proxima accion", "siguiente paso"),
+    "crm_notes": ("notes", "notas", "comentarios", "observaciones"),
 }
+
+NOTE_FIELDS = (
+    ("contact", "Contacto"), ("email", "Email"), ("status", "Estado en el CRM"),
+    ("next_step", "Próxima acción"), ("crm_notes", "Notas"),
+)
 
 
 def _norm(header: str) -> str:
@@ -104,6 +119,13 @@ def row_to_business(row: dict, mapping: dict[str, str], source: str) -> Business
     domain = normalize_domain(website) if website else ""
     if not name and not domain:
         return None
+    notes = [f"{label}: {get(fld)}" for fld, label in NOTE_FIELDS if get(fld)]
+    if domain and name and is_junk(domain):
+        # A business you listed whose "website" is its Instagram, Facebook or
+        # a directory page has no site of its own — for many offers that is
+        # the best lead in the file, not junk. Keep it, without the domain.
+        notes.insert(0, f"Web en la lista: {website} (no es una web propia)")
+        domain, website = "", ""
     location = get("location")
     external_id = ""
     if not domain:
@@ -111,6 +133,7 @@ def row_to_business(row: dict, mapping: dict[str, str], source: str) -> Business
         # the same file twice still doesn't duplicate it.
         key = f"{_norm(name)}|{_norm(location)}"
         external_id = "import:" + hashlib.sha1(key.encode()).hexdigest()[:16]
+    notes = "\n".join(notes)
     return Business(
         name=name or domain,
         domain=domain,
@@ -123,6 +146,7 @@ def row_to_business(row: dict, mapping: dict[str, str], source: str) -> Business
         external_id=external_id,
         source_url=source,
         provider="import",
+        notes=notes,
     )
 
 
@@ -166,7 +190,9 @@ async def import_companies(state, path: str | Path, sheet: str = "",
             if biz is None:
                 report.skipped += 1
                 continue
-            if biz.domain and is_junk(biz.domain, biz.name):
+            if is_junk(biz.domain, biz.name):
+                # Only a row that is itself a directory or list page gets
+                # here: a junk website alone was already turned into "no site".
                 report.junk += 1
                 continue
             ident = biz.identity()
