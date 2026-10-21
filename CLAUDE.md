@@ -274,6 +274,8 @@ harvey signals               # The signal vocabulary; --confirm / --reject CODES
 harvey discover              # Find businesses; --providers / --estimate / --provider <key>
 harvey import <file>         # Load companies from a .csv/.xlsx you already have (free)
 harvey approach              # Research-only: fit, hook, call opener and first message per company -> .xlsx (sends nothing)
+harvey rank                  # Score every company 0-100 with the profile's priority.yaml rules; reasons per point -> .xlsx
+harvey people                # Find decision makers of the best-ranked companies in search results
 harvey sending pause|resume  # Kill switch for all outbound
 ```
 

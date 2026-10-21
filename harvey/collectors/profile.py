@@ -182,6 +182,10 @@ galeria galería precios tarifas oferta ofertas empleo trabaja empresa empresas
 grupo soluciones proyecto proyectos opiniones testimonios preguntas frecuentes
 leer ver mas más especialidades especialidad instalaciones calidad garantia
 garantía llámanos llamanos escríbenos escribenos síguenos siguenos mapa web
+tienda shop store studio consulting consultoría consultoria consultores spain
+españa espana institut instituto academia escuela center centre gym fitness
+restaurant restaurante hotel bar café cafe bodega taller arquitectos arquitectura
+inmobiliaria peluquería peluqueria dental psicología psicologia fisioterapia
 """.split())
 
 # Tokens that are words, not names, whatever the vertical: abstract nouns
@@ -300,6 +304,10 @@ NAME_PATTERN = (
     rf"(?:\s+(?:de\s+la\s+|de\s+los\s+|del\s+|de\s+|y\s+)?[{_UP}][{_LO}{_UP}'\-]+){{1,3}}"
 )
 HONORIFIC = r"(?:Dra|Dr|Dña|D|Sra|Sr)\.?"
+# Demo content a theme ships with and nobody replaced.
+PLACEHOLDER = re.compile(
+    r"lorem\s+ipsum|dolor\s+sit\s+amet|hello@company\.com|info@example\.com|"
+    r"@yourdomain\.|your\s+company\s+name|john\s+doe|jane\s+doe", re.I)
 _FEMALE_DOCTOR = re.compile(r"^Dra\b")
 
 
@@ -526,7 +534,7 @@ class ProfileCollector:
     def _any(html: str, patterns) -> bool:
         return any(re.search(p, html, re.I) for p in patterns)
 
-    def detect_people(self, html: str) -> list[dict]:
+    def detect_people(self, html: str, domain: str = "") -> list[dict]:
         """Names + titles from a team page. Conservative on purpose."""
         text_html = _strip_code(html)
         people, seen = [], set()
@@ -550,6 +558,10 @@ class ProfileCollector:
                 raw_after = raw_after[: nxt.start()]
             if name.lower() in seen or len(name) > 45:
                 continue
+            # A theme's demo team ("Luke Jacobs, Marketing Manager, Lorem
+            # ipsum…, hello@company.com") is not the business's staff.
+            if PLACEHOLDER.search(raw_after):
+                continue
             # Reject obvious non-names
             if re.search(r"\d|@|\bthe\b|\bour\b|\bwe\b", name, re.I):
                 continue
@@ -566,6 +578,8 @@ class ProfileCollector:
             if not title and m.group("hon") in ("Dr", "Dra", "Dr.", "Dra."):
                 # "Dra. Ana Ruiz" needs no role line: the honorific is one.
                 title = "Doctora" if _FEMALE_DOCTOR.match(m.group("hon")) else "Doctor"
+            if not title and domain and name_in_domain(name, domain):
+                title = "Titular"       # the person the site is named after
             if not title:
                 continue
             seen.add(name.lower())
@@ -740,11 +754,23 @@ class ProfileCollector:
                     add("HIRING_ROLE", text=r, url=curl)
 
         # team page → people
-        if self.wants("CONTACT_FOUND") or self.wants("DECISION_MAKER_TITLE"):
+        turl, thtml = "", ""
+        if (self.wants("CONTACT_FOUND") or self.wants("DECISION_MAKER_TITLE")
+                or self.wants("PLACEHOLDER_CONTENT")):
             turl, thtml = await self._find_page(site, home, "team")
+
+        # Theme demo text still on the site: a flaw anyone can check.
+        if self.wants("PLACEHOLDER_CONTENT"):
+            for url, html in ((site, home), (turl, thtml)):
+                m = PLACEHOLDER.search(_text(html or ""))
+                if m:
+                    add("PLACEHOLDER_CONTENT", text=f"«{m.group(0)}»", url=url)
+                    break
+
+        if self.wants("CONTACT_FOUND") or self.wants("DECISION_MAKER_TITLE"):
             found = []                                   # (person, evidence url)
             if thtml:
-                found += [(p, turl) for p in self.detect_people(thtml)]
+                found += [(p, turl) for p in self.detect_people(thtml, domain)]
                 found += [(p, turl) for p in self.detect_owner_mentions(thtml, domain)]
             # Small businesses often sign the homepage instead of having a team page.
             found += [(p, site) for p in self.detect_owner_mentions(home, domain)]
@@ -754,6 +780,12 @@ class ProfileCollector:
                 if label.lower() in seen:
                     continue
                 seen.add(label.lower())
+                if name_in_domain(label, domain):
+                    # inmacosta.com and "Inma Costa": she is the business,
+                    # whatever word the page put next to her name.
+                    person["is_decision_maker"] = True
+                    if not ROLE_HINT.search(person["title"] or ""):
+                        person["title"] = "Titular"
                 add("CONTACT_FOUND",
                     text=f"{label} — {person['title']}" if person["title"] else label,
                     url=url)

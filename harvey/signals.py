@@ -278,6 +278,20 @@ SIGNAL_CATALOG: list[dict] = [
         "confidence_floor": 0.0,
     },
     {
+        "code": "PLACEHOLDER_CONTENT",
+        "label": "Template text left on the site",
+        "description": (
+            "The site still shows its theme's demo content: Lorem ipsum, a "
+            "made-up team, hello@company.com. A visible, checkable flaw — and "
+            "the names on that page are not real people."
+        ),
+        "category": "profile",
+        "value_type": "text",
+        "collector": "profile",
+        "cost_note": "free (site HTML)",
+        "confidence_floor": 0.0,
+    },
+    {
         "code": "CONTACT_FORM_URL",
         "label": "Contact form available",
         "description": (

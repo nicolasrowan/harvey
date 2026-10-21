@@ -121,3 +121,36 @@ async def test_profile_company_on_a_spanish_wordpress_site():
     assert ("SITE_PAGE_COUNT", 5) in got          # pages, not the one child sitemap
     stale = next(o for o in obs if o["signal_code"] == "BLOG_STALE")
     assert "2024-01-05" in stale["value_text"]
+
+
+def test_theme_demo_team_is_not_people(col):
+    html = """<h3>Luke Jacobs</h3><p>Marketing Manager</p><p>Lorem ipsum dolor sit amet,
+    consectetur adipisicing elit. hello@company.com</p>
+    <h3>Ana Ruiz</h3><p>Gerente</p><p>Lleva el restaurante desde 2010.</p>"""
+    assert [p["first_name"] for p in col.detect_people(html)] == ["Ana"]
+
+
+@pytest.mark.asyncio
+async def test_placeholder_content_and_owner_in_domain_are_signals():
+    pages = {
+        "/": '<html lang="es"><a href="/equipo/">Equipo</a>' + " " * 600 + "</html>",
+        "/equipo/": "<h3>Inma Costa</h3><p>Equipo</p><h3>Luke Jacobs</h3><p>Marketing Manager</p>"
+                    "<p>Lorem ipsum dolor sit amet</p>" + " " * 600,
+    }
+
+    def handler(request):
+        body = pages.get(request.url.path)
+        return (httpx.Response(200, headers={"content-type": "text/html"}, text=body) if body
+                else httpx.Response(404, headers={"content-type": "text/html"}, text="no"))
+
+    collector = ProfileCollector(state=None, confirmed={
+        "PLACEHOLDER_CONTENT", "CONTACT_FOUND", "DECISION_MAKER_TITLE"})
+    collector._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        obs = await collector.profile_company("c1", "inmacosta.com")
+    finally:
+        await collector._client.aclose()
+    got = {(o["signal_code"], o["value_text"]) for o in obs}
+    assert ("PLACEHOLDER_CONTENT", "«Lorem ipsum»") in got
+    assert ("DECISION_MAKER_TITLE", "Inma Costa — Titular") in got
+    assert not any("Luke" in (o["value_text"] or "") for o in obs)

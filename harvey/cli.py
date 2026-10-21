@@ -636,15 +636,18 @@ def cmd_approach(args):
             brain = Brain(state, config.brain)
             print(f"\n  APPROACH — up to {args.limit} companies, {args.batch} per call "
                   f"({brain.provider_label}). Nothing is sent.\n")
-            order = None
+            order, context = None, None
             if args.by_priority:
                 from harvey.priority import rank_companies
                 ranked = await rank_companies(state)
                 order = [r.company["id"] for r in ranked if r.score >= args.min_score]
+                context = {r.company["id"]: {"product": r.product, "ask_for": r.ask_for,
+                                             "reasons": r.reasons} for r in ranked}
                 print(f"  By priority: {len(order)} companies score {args.min_score} or more.")
             report = await draft_approaches(
                 state, brain, config, limit=args.limit, batch=args.batch,
-                industry=args.industry, redo=args.redo, spread=args.spread, order=order)
+                industry=args.industry, redo=args.redo, spread=args.spread, order=order,
+                context=context)
             print(f"    {report.drafted}/{report.candidates} approaches drafted, "
                   f"{report.sites_read} sites read, {report.calls} calls")
             if report.stopped:
@@ -1047,7 +1050,9 @@ def main():
     sub.add_argument("--stale-days", type=int, default=90,
                      help="Re-read a site after this many days (default: 90)")
     sub.add_argument("--concurrency", type=int, default=6,
-                     help="Sites read at once, each a different business (default: 6)")
+                     help="Sites read at once, each a different business (default: 6). "
+                          "Above ~10 a home connection starts timing out and live "
+                          "sites get marked unreachable")
     sub.set_defaults(func=cmd_profile)
 
     sub = subparsers.add_parser(

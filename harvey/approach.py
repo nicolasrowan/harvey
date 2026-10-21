@@ -126,7 +126,8 @@ async def read_site(collector: ProfileCollector, domain: str) -> dict:
     }
 
 
-def company_facts(company: dict, site: dict, signals: list[str]) -> str:
+def company_facts(company: dict, site: dict, signals: list[str],
+                  context: dict | None = None) -> str:
     lines = [
         f"### id={company['id']}",
         f"- Empresa: {company['name']}",
@@ -134,6 +135,15 @@ def company_facts(company: dict, site: dict, signals: list[str]) -> str:
         f"- Zona: {company['location'] or 'desconocida'}",
         f"- Web: {company['website'] or company['domain'] or 'no tiene web'}",
     ]
+    if context:
+        # What `harvey rank` and `harvey people` established, with sources.
+        if context.get("product"):
+            lines.append(f"- Qué ofrecerle: {context['product']}")
+        if context.get("ask_for"):
+            lines.append(f"- Quién decide, según Harvey: {context['ask_for']}")
+        if context.get("reasons"):
+            plain = [re.sub(r"^[+-]\d+\s+", "", r) for r in context["reasons"]]
+            lines.append("- Lo que Harvey ha comprobado: " + "; ".join(plain))
     if site:
         if site.get("title"):
             lines.append(f"- Título de su web: {site['title']}")
@@ -196,7 +206,8 @@ Reglas:
 - por_que: una o dos frases con el motivo del encaje.
 - gancho: la observación concreta y comprobable que abre la conversación, y
   de dónde sale (su web o el CRM).
-- preguntar_por: a quién pedir al llamar: el nombre si el CRM lo da, si no el cargo.
+- preguntar_por: a quién pedir al llamar: la persona que da Harvey o el CRM, con
+  su cargo y de dónde sale; si no hay nadie, el cargo.
 - llamada: una o dos frases para abrir la llamada, con el gancho.
 - asunto y mensaje: el primer correo tal como lo escribirías siguiendo TODAS
   las reglas de arriba (menos de 75 palabras, una sola pregunta, sin nombrar
@@ -278,7 +289,8 @@ async def _signals_for(state, company_id: str) -> list[str]:
 async def draft_approaches(state, brain, config, limit: int = 10, batch: int = 5,
                            industry: str = "", redo: bool = False,
                            spread: bool = False,
-                           order: list[str] | None = None) -> ApproachReport:
+                           order: list[str] | None = None,
+                           context: dict[str, dict] | None = None) -> ApproachReport:
     report = ApproachReport()
     companies = await companies_needing_approach(state, limit, industry, redo, spread, order)
     report.candidates = len(companies)
@@ -299,7 +311,8 @@ async def draft_approaches(state, brain, config, limit: int = 10, batch: int = 5
                 site = await read_site(collector, company["domain"])
                 sites[company["id"]] = site
                 report.sites_read += bool(site)
-                facts.append(company_facts(company, site, await _signals_for(state, company["id"])))
+                facts.append(company_facts(company, site, await _signals_for(state, company["id"]),
+                                           (context or {}).get(company["id"])))
             prompt = build_prompt(brain, config, facts)
             report.calls += 1
             try:

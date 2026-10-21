@@ -84,3 +84,18 @@ async def test_find_people_stores_observations_and_stops_early(state, monkeypatc
 
     # Searched once: not searched again.
     assert await people.companies_to_search(state, ranked, min_score=0) == []
+
+
+def test_without_a_site_the_town_must_match_and_roles_must_be_roles():
+    gym = {"id": "g", "name": "Opera Gym", "domain": "", "location": "Málaga"}
+    results = [
+        {"title": "Kitney Bisher - Gym Instructor - Opera Gym | LinkedIn",
+         "url": "https://www.linkedin.com/in/k", "snippet": "Houston, Texas"},
+        {"title": "Laura Gil - Gerente - Opera Gym | LinkedIn",
+         "url": "https://es.linkedin.com/in/l", "snippet": "Málaga, Andalucía"},
+    ]
+    assert [f.name for f in people.findings_from_results(results, gym)] == ["Laura Gil"]
+    piso = {"id": "p", "name": "Mi Piso en Madrid", "domain": "mipisoenmadrid.com"}
+    odd = [{"title": "Luis Aguirre Rocca - Mi Piso - Mi Piso en Madrid | LinkedIn",
+            "url": "https://es.linkedin.com/in/luis", "snippet": ""}]
+    assert people.findings_from_results(odd, piso) == []

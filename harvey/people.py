@@ -26,7 +26,7 @@ from urllib.parse import parse_qs, quote_plus, urlparse
 import httpx
 
 from harvey.collectors.profile import (
-    NON_NAME_WORDS, USER_AGENTS, is_decision_maker_title, plausible_name,
+    NON_NAME_WORDS, ROLE_HINT, USER_AGENTS, is_decision_maker_title, plausible_name,
 )
 
 logger = logging.getLogger("harvey.people")
@@ -124,11 +124,17 @@ def parse_profile_title(title: str) -> tuple[str, str, str]:
 
 def findings_from_results(results: list[dict], company: dict) -> list[Finding]:
     tokens = distinctive_tokens(company.get("name", ""), company.get("domain", ""))
+    # Without a domain the name is all we can match on, and "Opera Gym" exists
+    # in many cities: the result must name the town too.
+    town = _plain((company.get("location") or "").split(",")[0]).strip()
+    needs_town = not company.get("domain") and bool(town)
     out: dict[str, Finding] = {}
     for r in results:
         title, url, snippet = r.get("title", ""), r.get("url", ""), r.get("snippet", "")
         host = urlparse(url).netloc.lower()
         about_us = mentions_company(f"{title} {snippet}", tokens)
+        if needs_town and town not in _plain(f"{title} {snippet}"):
+            continue
         if "linkedin.com" in host and "/in/" in url:
             name, role, where = parse_profile_title(title)
             if not role:
@@ -143,8 +149,8 @@ def findings_from_results(results: list[dict], company: dict) -> list[Finding]:
                               r"[Pp]ropietari[oa]|[Tt]itular|[Oo]wner|[Ff]ounder|[Mm]anaging [Pp]artner)"
                               r"[^.·|]{0,40})", snippet)
                 role = m.group(1).strip() if m else ""
-            if not role:
-                continue
+            if not role or not (ROLE_HINT.search(role) or is_decision_maker_title(role)):
+                continue        # "Mi Piso" is where they work, not what they do
             out.setdefault(name.lower(), Finding(name, role[:70], url, "LinkedIn",
                                                  is_decision_maker_title(role)))
             continue
