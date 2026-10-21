@@ -69,7 +69,8 @@ async def ensure_table(state):
 
 
 async def companies_needing_approach(state, limit: int, industry: str = "",
-                                     redo: bool = False, spread: bool = False) -> list[dict]:
+                                     redo: bool = False, spread: bool = False,
+                                     order: list[str] | None = None) -> list[dict]:
     """Companies without an approach yet, oldest first.
 
     ``spread`` takes them round-robin across industries, so a small trial
@@ -93,7 +94,12 @@ async def companies_needing_approach(state, limit: int, industry: str = "",
             params,
         ) as cursor:
             rows = [dict(r) for r in await cursor.fetchall()]
-    if spread:
+    if order:
+        # Best first, as `harvey rank` scored them; anything unranked goes last.
+        position = {cid: i for i, cid in enumerate(order)}
+        rows = [r for r in rows if r["id"] in position]
+        rows.sort(key=lambda r: position[r["id"]])
+    elif spread:
         by_industry: dict[str, list[dict]] = {}
         for row in rows:
             by_industry.setdefault(row["industry"] or "", []).append(row)
@@ -271,9 +277,10 @@ async def _signals_for(state, company_id: str) -> list[str]:
 
 async def draft_approaches(state, brain, config, limit: int = 10, batch: int = 5,
                            industry: str = "", redo: bool = False,
-                           spread: bool = False) -> ApproachReport:
+                           spread: bool = False,
+                           order: list[str] | None = None) -> ApproachReport:
     report = ApproachReport()
-    companies = await companies_needing_approach(state, limit, industry, redo, spread)
+    companies = await companies_needing_approach(state, limit, industry, redo, spread, order)
     report.candidates = len(companies)
     if not companies:
         return report

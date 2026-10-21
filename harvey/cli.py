@@ -492,7 +492,8 @@ def cmd_profile(args):
         print(f"\n  {pending} companies need profiling. Reading up to "
               f"{args.limit}...\n")
         companies, observations, _ = await run_profile_stage(
-            state, limit=args.limit, stale_days=args.stale_days)
+            state, limit=args.limit, stale_days=args.stale_days,
+            concurrency=args.concurrency)
         print(f"  Read {companies} sites → {observations} observations (free)")
         print("\n  See what turned up: harvey dashboard → Signals\n")
 
@@ -635,9 +636,15 @@ def cmd_approach(args):
             brain = Brain(state, config.brain)
             print(f"\n  APPROACH — up to {args.limit} companies, {args.batch} per call "
                   f"({brain.provider_label}). Nothing is sent.\n")
+            order = None
+            if args.by_priority:
+                from harvey.priority import rank_companies
+                ranked = await rank_companies(state)
+                order = [r.company["id"] for r in ranked if r.score >= args.min_score]
+                print(f"  By priority: {len(order)} companies score {args.min_score} or more.")
             report = await draft_approaches(
                 state, brain, config, limit=args.limit, batch=args.batch,
-                industry=args.industry, redo=args.redo, spread=args.spread)
+                industry=args.industry, redo=args.redo, spread=args.spread, order=order)
             print(f"    {report.drafted}/{report.candidates} approaches drafted, "
                   f"{report.sites_read} sites read, {report.calls} calls")
             if report.stopped:
@@ -656,6 +663,71 @@ def cmd_approach(args):
             print("\n  See them with: harvey approach --limit 0 --export enfoques.xlsx\n")
 
     asyncio.run(_approach())
+
+
+def cmd_people(args):
+    """Search the web for the decision maker of the best-ranked companies."""
+    from harvey.people import companies_to_search, find_people
+    from harvey.priority import load_rules, rank_companies
+    from harvey.signals import seed_signal_catalog
+    from harvey.state import StateManager
+
+    async def _people():
+        state = StateManager()
+        await state.init_db()
+        await seed_signal_catalog(state)
+        ranked = await rank_companies(state, load_rules())
+        todo = await companies_to_search(state, ranked, min_score=args.min_score)
+        print(f"\n  PEOPLE — {len(todo)} companies scoring {args.min_score}+ have no "
+              f"decision maker yet; searching the best {min(args.top, len(todo))}.")
+        print("  Reads search results only (DuckDuckGo, then Bing), with pauses.\n")
+        report = await find_people(state, todo, max_companies=args.top)
+        print(f"    {report.searched} searched in {report.queries} queries")
+        print(f"    {report.found_decision_makers} decision makers, "
+              f"{report.found_people} people in all")
+        if report.skipped_generic:
+            print(f"    {report.skipped_generic} skipped: name too generic to match safely")
+        for err in report.errors[:5]:
+            print(f"    ! {err}")
+        print("\n  Next: harvey rank (they now count in the score)\n")
+
+    asyncio.run(_people())
+
+
+def cmd_rank(args):
+    """Who to call first, and why. Rules in the profile's priority.yaml; free."""
+    from harvey.paths import PROFILE
+    from harvey.priority import load_rules, rank_companies, summary, write_ranking
+    from harvey.state import StateManager
+
+    async def _rank():
+        state = StateManager()
+        await state.init_db()
+        try:
+            rules = load_rules()
+        except FileNotFoundError as e:
+            print(f"\n  {e}\n")
+            sys.exit(2)
+        ranked = await rank_companies(state, rules)
+        s = summary(ranked)
+        print(f"\n  RANK — {s['total']} companies")
+        print("    by score:   " + "   ".join(f"{k}: {v}" for k, v in s["bands"].items()))
+        print("    to offer:   " + "   ".join(f"{k}: {v}" for k, v in s["products"].items()))
+        print(f"    with a named person from their site: {s['with_person']}")
+        print("\n  Top:")
+        for i, r in enumerate(ranked[:args.show], start=1):
+            print(f"   {i:>3}. {r.score:>3}  {r.company.get('name', '')[:46]:46}  {r.product}")
+            for reason in r.reasons[:4]:
+                print(f"            · {reason}")
+        out = args.export or (f"prioridad-{PROFILE}.xlsx" if PROFILE else "prioridad.xlsx")
+        top = ranked[:args.top] if args.top else ranked
+        try:
+            path = write_ranking(top, out)
+        except ImportError:
+            path = write_ranking(top, Path(out).with_suffix(".csv"))
+        print(f"\n  Exported {len(top)} to {path}\n")
+
+    asyncio.run(_rank())
 
 
 def cmd_signals(args):
@@ -933,6 +1005,21 @@ def main():
     sub.set_defaults(func=cmd_import)
 
     sub = subparsers.add_parser(
+        "people", help="Find the decision maker of the best-ranked companies in search results")
+    sub.add_argument("--top", type=int, default=30, help="Companies to search (default: 30)")
+    sub.add_argument("--min-score", type=int, default=50,
+                     help="Only companies scoring at least this (default: 50)")
+    sub.set_defaults(func=cmd_people)
+
+    sub = subparsers.add_parser(
+        "rank", help="Who to call first, and why (rules in the profile's priority.yaml; free)")
+    sub.add_argument("--top", type=int, default=0, help="Export only the best N (default: all)")
+    sub.add_argument("--show", type=int, default=15, help="How many to print (default: 15)")
+    sub.add_argument("--export", default="",
+                     help="Output .xlsx or .csv (default: prioridad-<profile>.xlsx)")
+    sub.set_defaults(func=cmd_rank)
+
+    sub = subparsers.add_parser(
         "approach", help="Draft how to approach each company (fit, hook, opener, "
                          "first message). Nothing is sent")
     sub.add_argument("--limit", type=int, default=10,
@@ -942,6 +1029,10 @@ def main():
     sub.add_argument("--spread", action="store_true",
                      help="Round-robin across industries (good for a first look)")
     sub.add_argument("--redo", action="store_true", help="Redraft companies that have one")
+    sub.add_argument("--by-priority", action="store_true",
+                     help="Best-scored first, as `harvey rank` orders them")
+    sub.add_argument("--min-score", type=int, default=60,
+                     help="With --by-priority, skip companies below this score (default: 60)")
     sub.add_argument("--export", default="",
                      help="Write all approaches to .xlsx or .csv "
                           "(default with --limit 0: enfoques-<profile>.xlsx)")
@@ -955,6 +1046,8 @@ def main():
                      help="Max sites to read (default: 200)")
     sub.add_argument("--stale-days", type=int, default=90,
                      help="Re-read a site after this many days (default: 90)")
+    sub.add_argument("--concurrency", type=int, default=6,
+                     help="Sites read at once, each a different business (default: 6)")
     sub.set_defaults(func=cmd_profile)
 
     sub = subparsers.add_parser(

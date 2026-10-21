@@ -60,6 +60,7 @@ async def run_profile_stage(
     state,
     limit: int = 100,
     stale_days: int = PROFILE_STALE_DAYS,
+    concurrency: int = 1,
 ) -> tuple[int, int, str]:
     """Profile whatever currently needs it.
 
@@ -75,7 +76,9 @@ async def run_profile_stage(
         return 0, 0, ""
 
     logger.info("profile: %d companies need a look", len(pending))
-    observations, run_id = await profile_companies(state, pending)
+    # Only passed when asked for, so the default call is exactly the old one.
+    extra = {"concurrency": concurrency} if concurrency != 1 else {}
+    observations, run_id = await profile_companies(state, pending, **extra)
     return len(pending), observations, run_id
 
 

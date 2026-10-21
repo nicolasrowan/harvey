@@ -61,10 +61,14 @@ BENIGN_HOSTS = (
 # an email is worse than saying nothing at all.
 STRONG_CREDIT = re.compile(
     r"\b(powered|website|site|web\s*design|designed|developed|built|created|"
-    r"marketing)\s+(by|&)\b", re.I)
+    r"marketing)\s+(by|&)\b"
+    # Spanish footers: "Diseño web por X", "Desarrollado por X", "Web realizada por X"
+    r"|\b(dise[ñn]o(\s+web)?|dise[ñn]ad[oa]|desarrollo(\s+web)?|desarrollad[oa]|"
+    r"realizad[oa]|cread[oa]|hech[oa]|p[áa]gina\s+web|web)\s+(por|by)\b", re.I)
 DESCRIPTIVE_CREDIT = re.compile(
     r"\b(web\s*design|website\s*design|digital\s*marketing|seo|marketing\s*"
-    r"agency|web\s*development)\b", re.I)
+    r"agency|web\s*development|dise[ñn]o\s+web|desarrollo\s+web|agencia\s+de\s+"
+    r"marketing|marketing\s+digital|posicionamiento\s+web)\b", re.I)
 RECORD_FLOOR = 0.75
 
 # ── Tech / platform fingerprints (name -> regexes over raw HTML) ──
@@ -89,6 +93,19 @@ TECH_FINGERPRINTS: dict[str, tuple[str, ...]] = {
     "Housecall Pro": (r"housecallpro",),
     "CallRail": (r"cdn\.callrail\.com",),
     "Stripe": (r"js\.stripe\.com",),
+    # Common on Spanish small-business sites
+    "Elementor": (r"/elementor/", r"elementor-kit-"),
+    "Divi": (r"/themes/Divi/", r"et_pb_section"),
+    "Joomla": (r"/media/jui/", r"content=\"Joomla!"),
+    "PrestaShop": (r"prestashop", r"/modules/ps_"),
+    "Jimdo": (r"jimdo\.com", r"jimstatic\.com"),
+    "IONOS MyWebsite": (r"mywebsite-editor\.com", r"/-_-/res/"),
+    "Doctoralia": (r"doctoralia\.(es|com)",),
+    "Booksy": (r"booksy\.com",),
+    "Treatwell": (r"treatwell\.(es|com)",),
+    "TheFork": (r"thefork\.(es|com)", r"eltenedor\.es"),
+    "CoverManager": (r"covermanager\.com",),
+    "WhatsApp button": (r"wa\.me/\d", r"api\.whatsapp\.com/send"),
 }
 
 GOOGLE_ADS = (r"googleadservices\.com", r"gtag/js\?id=AW-", r"google_conversion",
@@ -98,7 +115,13 @@ META_PIXEL = (r"connect\.facebook\.net/[^\"']*fbevents\.js", r"fbq\s*\(\s*['\"]i
 BOOKING_HINTS = (r"calendly\.com", r"acuityscheduling", r"schedulicity",
                  r"squareup\.com/appointments", r"setmore", r"book(ing)?[-_]?now",
                  r"schedule[-_]?(an?[-_])?(appointment|estimate|consultation)",
-                 r"housecallpro", r"getjobber\.com", r"servicetitan")
+                 r"housecallpro", r"getjobber\.com", r"servicetitan",
+                 # Spain: booking platforms and the words a "book now" button uses
+                 r"doctoralia\.", r"booksy\.com", r"treatwell\.", r"timify\.",
+                 r"bookitit", r"simplybook", r"reservio", r"agendapro", r"citaplanner",
+                 r"covermanager\.com", r"thefork\.", r"eltenedor\.", r"restoo\.",
+                 r"(reserva|pide|pedir|solicita|solicitar|reservar)[-_ ]?(tu[-_ ]|una[-_ ])?cita",
+                 r"cita[-_ ]online", r"reserva[-_ ]online", r"reservar[-_ ]mesa")
 
 AI_CRAWLERS = ("gptbot", "google-extended", "ccbot", "anthropic-ai", "claudebot",
                "perplexitybot", "bytespider")
@@ -109,6 +132,26 @@ CAREERS_PATHS = ("/careers", "/jobs", "/join-us", "/employment", "/hiring",
                  "/about/careers", "/careers/")
 CONTACT_PATHS = ("/contact", "/contact-us", "/get-a-quote", "/free-estimate",
                  "/request-estimate", "/quote")
+
+# Spanish-language sites. Tried first when the homepage says it is in Spanish
+# (or Catalan, Galician, Basque); never guessed on an English site.
+TEAM_PATHS_ES = ("/equipo", "/nuestro-equipo", "/el-equipo", "/quienes-somos",
+                 "/sobre-nosotros", "/nosotros", "/conocenos", "/sobre-mi",
+                 "/es/equipo", "/es/quienes-somos", "/es/sobre-nosotros")
+CAREERS_PATHS_ES = ("/trabaja-con-nosotros", "/empleo", "/ofertas-de-empleo",
+                    "/unete", "/unete-al-equipo", "/es/trabaja-con-nosotros")
+CONTACT_PATHS_ES = ("/contacto", "/contactar", "/contacta", "/es/contacto")
+SPANISH_LANGS = ("es", "ca", "gl", "eu")
+
+# What a navigation link to each kind of page says, in any of those languages.
+# Following the site's own link beats guessing paths: it finds /el-estudio or
+# /la-doctora where no fixed list would.
+LINK_HINTS = {
+    "team": r"equipo|qui[eé]nes\s+somos|sobre\s+(nosotros|m[ií])|nosotros|con[oó]cenos|"
+            r"la\s+doctora|el\s+doctor|el\s+despacho|el\s+estudio|our\s+team|\bteam\b|about\s+us",
+    "careers": r"trabaja\s+con\s+nosotros|empleo|[uú]nete|ofertas\s+de\s+trabajo|careers|jobs",
+    "contact": r"contacto|contacta|contactar|contact\s+us|\bcontact\b",
+}
 
 # Words that are never part of a person's name. Without this, headings like
 # "Request Service", "Baker History" and "Commercial Services" pass a
@@ -130,6 +173,15 @@ hoa hoas condo condos association associations board boards community
 communities management property properties owners residents customer care
 scope alignment implementation consistency communication process driven
 focused structured
+equipo nuestro nuestra nuestros nosotros quienes somos servicio servicios
+contacto contacta contactar inicio clinica clínica centro despacho abogados
+estudio noticias politica política privacidad aviso legal cookies tratamiento
+tratamientos reserva reservar cita citas pide pedir horario horarios ubicacion
+ubicación donde dónde sobre bienvenidos bienvenida informacion información
+galeria galería precios tarifas oferta ofertas empleo trabaja empresa empresas
+grupo soluciones proyecto proyectos opiniones testimonios preguntas frecuentes
+leer ver mas más especialidades especialidad instalaciones calidad garantia
+garantía llámanos llamanos escríbenos escribenos síguenos siguenos mapa web
 """.split())
 
 # Tokens that are words, not names, whatever the vertical: abstract nouns
@@ -151,7 +203,7 @@ def _is_name_token(token: str) -> bool:
 # Block-level tags separate a name, its title, and the bio that follows; the
 # first text chunk after the name heading is the title, nothing further.
 _BLOCK_BREAK = re.compile(r"(?i)<(?:/?(?:p|div|li|ul|ol|section|article|td|tr)\b[^>]*|br\s*/?)>")
-_CONNECTORS = frozenset("of and the for & to in at".split())
+_CONNECTORS = frozenset("of and the for & to in at de del la las los y e en para con".split())
 
 
 def _title_chunks(raw_after: str) -> list[str]:
@@ -184,6 +236,33 @@ DECISION_MAKER_TITLES = (
     "director of marketing", "vice president", "vp ", "managing director",
     "chief", "director",
 )
+# Spanish decision-maker titles, on word boundaries: a substring test would
+# make every "abogado asociado" a "socia".
+DECISION_MAKER_ES = re.compile(
+    r"\b(gerente|soci[oa]|fundador[a]?|cofundador[a]?|propietari[oa]|titular|"
+    r"director[a]?|president[ea]|due[ñn][oa]|"
+    # the company's administrator, not "administrador comercial / de sistemas"
+    r"administrador[a]?(?=\s*(?:$|[,.;·|&]|\s+(?:[úu]nic[oa]|solidari[oa]|mancomunad[oa]))))\b",
+    re.I)
+
+
+_TOP_DECIDER = re.compile(
+    r"\b(ceo|owner|founder|co-?founder|managing (director|partner)|gerente|"
+    r"fundador[a]?|cofundador[a]?|propietari[oa]|titular|due[ñn][oa]|"
+    r"soci[oa] (director[a]?|fundador[a]?|gerente)|administrador[a]? [úu]nic[oa]|"
+    r"director[a]? general|president[ea]?)\b", re.I)
+
+
+def decision_weight(title: str) -> int:
+    """2 = runs the business, 1 = decides an area, 0 = neither."""
+    if _TOP_DECIDER.search(title or ""):
+        return 2
+    return 1 if is_decision_maker_title(title) else 0
+
+
+def is_decision_maker_title(title: str) -> bool:
+    low = (title or "").lower()
+    return any(t in low for t in DECISION_MAKER_TITLES) or bool(DECISION_MAKER_ES.search(low))
 
 
 ROLE_HINT = re.compile(
@@ -191,7 +270,16 @@ ROLE_HINT = re.compile(
     r"director|supervisor|superintendent|foreman|estimator|specialist|"
     r"consultant|coordinator|representative|rep|sales|marketing|operations|"
     r"office|project|account|service|technician|installer|inspector|"
-    r"vice president|vp|executive|lead|head of|chief)\b", re.I)
+    r"vice president|vp|executive|lead|head of|chief|"
+    # Spanish roles and professions that sign a small business's team page
+    r"gerente|soci[oa]|fundador[a]?|cofundador[a]?|director[a]?|propietari[oa]|"
+    r"titular|responsable|administrador[a]?|president[ea]|jef[ea]|coordinador[a]?|"
+    r"abogad[oa]|odont[oó]log[oa]|dentista|psic[oó]log[oa]|fisioterapeuta|"
+    r"m[eé]dic[oa]|doctor[a]?|arquitect[oa]|asesor[a]?|consultor[a]?|comercial|"
+    r"t[eé]cnic[oa]|recepcionista|higienista|enfermer[oa]|nutricionista|"
+    r"oste[oó]pata|entrenador[a]?|instructor[a]?|profesor[a]?|fot[oó]graf[oa]|"
+    r"esteticista|peluquer[oa]|estilista|chef|cociner[oa]|ingenier[oa]|"
+    r"gestor[a]?|contable|coach)\b", re.I)
 
 
 def title_looks_like_role(text: str) -> bool:
@@ -201,6 +289,60 @@ def title_looks_like_role(text: str) -> bool:
     a person — requiring a role is the cheapest high-precision filter.
     """
     return bool(ROLE_HINT.search(text[:160]))
+
+
+# Person names, Spanish-aware: accented capitals, two surnames and the
+# particles in between ("María de la Fuente", "José Luis Pérez García").
+_UP = "A-ZÁÉÍÓÚÑÜ"
+_LO = "a-záéíóúñüçàèìòùï"
+NAME_PATTERN = (
+    rf"[{_UP}][{_LO}'\-]+(?:\s+[{_UP}]\.)?"
+    rf"(?:\s+(?:de\s+la\s+|de\s+los\s+|del\s+|de\s+|y\s+)?[{_UP}][{_LO}{_UP}'\-]+){{1,3}}"
+)
+HONORIFIC = r"(?:Dra|Dr|Dña|D|Sra|Sr)\.?"
+_FEMALE_DOCTOR = re.compile(r"^Dra\b")
+
+
+def _strip_accents(text: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFKD", text or "")
+                   if not unicodedata.combining(c))
+
+
+def plausible_name(name: str) -> bool:
+    """2-5 tokens, every one a name part, none a role or a business word."""
+    tokens = name.split()
+    real = [t for t in tokens if t.lower() not in ("de", "del", "la", "los", "y")]
+    if not 2 <= len(real) <= 4 or len(name) > 45:
+        return False
+    if re.search(r"\d|@|\bthe\b|\bour\b|\bwe\b", name, re.I) or ROLE_HINT.search(name):
+        return False
+    return all(_is_name_token(t) for t in real)
+
+
+def name_in_domain(name: str, domain: str) -> bool:
+    """'Daniel López' and daniellopezart.com: the person IS the business."""
+    stem = _strip_accents(domain.lower()).split(".")[0].replace("-", "")
+    tokens = [_strip_accents(t.lower()) for t in name.split() if len(t) > 2]
+    return len(tokens) >= 2 and sum(t in stem for t in tokens) >= 2
+
+
+# Owners named in running text rather than on a team grid. Matched text node
+# by text node, so a name can't swallow the heading that follows it.
+_OWNER_TITLE = (r"CEO|[Gg]erente|[Ff]undador[a]?|[Cc]ofundador[a]?|"
+                r"[Ss]oci[oa](?:\s+[Dd]irector[a]?|\s+[Ff]undador[a]?)?|"
+                r"[Dd]irector[a]?(?:\s+[Gg]eneral|\s+[Mm][eé]dic[oa])?|"
+                r"[Pp]ropietari[oa]|[Tt]itular")
+OWNER_PATTERNS = (
+    # "Dra. Krystel Cano" as a label of its own
+    re.compile(rf"^(?P<hon>Dra|Dr)\.?\s+(?P<name>{NAME_PATTERN})\s*(?:[,·|–—\-]\s*(?P<title>[^,.]{{3,60}}))?$"),
+    # "Soy María López, fisioterapeuta" on a sobre-mí page
+    re.compile(rf"\b[Ss]oy\s+(?P<name>{NAME_PATTERN})(?=\s*[,.]|$)"),
+    # "María López, fundadora" / "María López – Gerente"
+    re.compile(rf"(?P<name>{NAME_PATTERN})\s*[,·|–—\-]\s*(?P<title>{_OWNER_TITLE})\b"),
+    # "Fundadora: María López"
+    re.compile(rf"\b(?P<title>{_OWNER_TITLE})\s*:\s*(?P<name>{NAME_PATTERN})"),
+)
 
 
 def _strip_code(html: str) -> str:
@@ -294,6 +436,48 @@ class ProfileCollector:
                 return url, html
         return "", ""
 
+    @staticmethod
+    def page_language(home: str) -> str:
+        m = re.search(r"(?is)<html\b[^>]*\blang=[\"']?([a-zA-Z]{2})", home or "")
+        return m.group(1).lower() if m else ""
+
+    @staticmethod
+    def nav_link(site: str, home: str, kind: str) -> str:
+        """The site's own link to its team / careers / contact page, if any."""
+        hint = re.compile(LINK_HINTS[kind], re.I)
+        host = urlparse(site).netloc.lower().replace("www.", "")
+        for link in re.finditer(r'(?is)<a\b[^>]*href=["\']([^"\'#]+)["\'][^>]*>(.*?)</a>',
+                                _strip_code(home or "")):
+            href = link.group(1).strip()
+            if href.startswith(("mailto:", "tel:", "javascript:")):
+                continue
+            url = urljoin(site + "/", href)
+            parsed = urlparse(url)
+            if parsed.netloc.lower().replace("www.", "") != host or parsed.path in ("", "/"):
+                continue
+            anchor = re.sub(r"\s+", " ", html_unescape(re.sub(r"(?s)<[^>]+>", " ", link.group(2))))
+            words = parsed.path.replace("-", " ").replace("_", " ")
+            if hint.search(anchor) or hint.search(words):
+                return url
+        return ""
+
+    async def _find_page(self, site: str, home: str, kind: str) -> tuple[str, str]:
+        """(url, html) of a team / careers / contact page: the site's own
+        navigation link first, then the usual paths for its language."""
+        url = self.nav_link(site, home, kind)
+        if url:
+            html = await self._get(url)
+            if html and len(html) > 500:
+                return url, html
+        english = {"team": TEAM_PATHS, "careers": CAREERS_PATHS, "contact": CONTACT_PATHS}[kind]
+        if self.page_language(home) in SPANISH_LANGS:
+            spanish = {"team": TEAM_PATHS_ES, "careers": CAREERS_PATHS_ES,
+                       "contact": CONTACT_PATHS_ES}[kind]
+            paths = spanish + english[:3]
+        else:
+            paths = english
+        return await self._first_present(site, paths)
+
     # ── individual detectors ──
 
     def detect_agency(self, html: str, domain: str) -> tuple[str, float, str] | None:
@@ -350,17 +534,17 @@ class ProfileCollector:
         # Tag names match any case; the NAME must not — under a blanket (?i)
         # "Customer care" passes the Firstname Lastname capitalisation test.
         for m in re.finditer(
-            r"(?s)<((?i:h[1-5]|strong|b))[^>]*>\s*([A-Z][a-z'\-]+(?:\s+[A-Z]\.?)?\s+"
-            r"[A-Z][a-zA-Z'\-]+)\s*</(?i:\1)>(?=(.{0,220}))", text_html
+            rf"(?s)<(?P<tag>(?i:h[1-5]|strong|b))[^>]*>\s*(?:(?P<hon>{HONORIFIC})\s+)?"
+            rf"(?P<name>{NAME_PATTERN})\s*</(?i:(?P=tag))>(?=(?P<after>.{{0,220}}))", text_html
         ):
             # NOTE the lookahead above: capturing the trailing context normally
             # would CONSUME it, so finditer would skip every person whose entry
             # fell inside the previous person's 220-char window.
-            name = re.sub(r"\s+", " ", m.group(2)).strip()
+            name = re.sub(r"\s+", " ", m.group("name")).strip()
             # Bound the context at the NEXT heading, in raw HTML, before
             # stripping tags — otherwise one member's role bleeds into the
             # next member's entry.
-            raw_after = m.group(3)
+            raw_after = m.group("after")
             nxt = re.search(r"(?i)<(h[1-5]|strong|b)\b", raw_after)
             if nxt:
                 raw_after = raw_after[: nxt.start()]
@@ -379,6 +563,9 @@ class ProfileCollector:
             # heading followed by a sentence is a feature list.
             title = next((c for c in _title_chunks(raw_after)[:2]
                           if _reads_like_title(c)), "")
+            if not title and m.group("hon") in ("Dr", "Dra", "Dr.", "Dra."):
+                # "Dra. Ana Ruiz" needs no role line: the honorific is one.
+                title = "Doctora" if _FEMALE_DOCTOR.match(m.group("hon")) else "Doctor"
             if not title:
                 continue
             seen.add(name.lower())
@@ -386,10 +573,51 @@ class ProfileCollector:
             people.append({
                 "first_name": parts[0], "last_name": " ".join(parts[1:]),
                 "title": title[:80],
-                "is_decision_maker": any(t in title.lower() for t in DECISION_MAKER_TITLES),
+                "is_decision_maker": is_decision_maker_title(title),
             })
             if len(people) >= 12:
                 break
+        return people
+
+    def detect_owner_mentions(self, html: str, domain: str = "") -> list[dict]:
+        """Owners named in running text: 'Dra. Krystel Cano', 'Soy María
+        López', 'Ana Ruiz, fundadora'. Small businesses rarely have a team
+        grid; the person who decides usually signs the page instead."""
+        people, seen = [], set()
+        nodes = (html_unescape(re.sub(r"\s+", " ", n)).strip()
+                 for n in re.split(r"<[^>]+>", _strip_code(html or "")))
+        for node in nodes:
+            if not node or len(node) > 400:
+                continue
+            for pattern in OWNER_PATTERNS:
+                for m in pattern.finditer(node):
+                    name = re.sub(r"\s+", " ", m.group("name")).strip(" ,.")
+                    if name.lower() in seen or not plausible_name(name):
+                        continue
+                    groups = m.groupdict()
+                    title = (groups.get("title") or "").strip(" ,.")
+                    if not title and groups.get("hon"):
+                        title = "Doctora" if groups["hon"] == "Dra" else "Doctor"
+                    owner = bool(domain) and name_in_domain(name, domain)
+                    if not title and owner:
+                        title = "Titular"
+                    if not title and pattern is OWNER_PATTERNS[1]:
+                        title = "Titular (se presenta en su web)"
+                    if not title:
+                        continue
+                    seen.add(name.lower())
+                    parts = name.split()
+                    people.append({
+                        "first_name": parts[0], "last_name": " ".join(parts[1:]),
+                        "title": title[:80],
+                        # A doctor is not the decision maker of a five-dentist
+                        # clinic; only the owner, a decision title or a
+                        # first-person "soy" page counts.
+                        "is_decision_maker": owner or is_decision_maker_title(title)
+                                             or title.startswith("Titular"),
+                    })
+                    if len(people) >= 6:
+                        return people
         return people
 
     # ── the stage itself ──
@@ -451,6 +679,16 @@ class ProfileCollector:
         # sitemap.xml → size + content freshness
         if self.wants("SITE_PAGE_COUNT") or self.wants("BLOG_STALE"):
             sm = await self._get(f"{site}/sitemap.xml")
+            if not sm:
+                # WordPress core and Yoast publish theirs under other names.
+                sm = (await self._get(f"{site}/sitemap_index.xml")
+                      or await self._get(f"{site}/wp-sitemap.xml"))
+            if sm and re.search(r"(?i)<sitemapindex\b", sm):
+                # An index lists sitemaps, not pages: read a few of them so the
+                # count is pages and the newest date is real content.
+                children = re.findall(r"<loc>\s*([^<]+)\s*</loc>", sm)[:4]
+                parts = [await self._get(html_unescape(c.strip())) for c in children]
+                sm = "\n".join(p for p in parts if p) or sm
             if sm:
                 locs = re.findall(r"<loc>\s*([^<]+)\s*</loc>", sm)
                 if self.wants("SITE_PAGE_COUNT") and locs:
@@ -472,13 +710,13 @@ class ProfileCollector:
             if re.search(r"(?is)<form\b", _strip_code(home)):
                 add("CONTACT_FORM_URL", text=site, url=site)
             else:
-                curl, chtml = await self._first_present(site, CONTACT_PATHS)
+                curl, chtml = await self._find_page(site, home, "contact")
                 if chtml and re.search(r"(?is)<form\b", _strip_code(chtml)):
                     add("CONTACT_FORM_URL", text=curl, url=curl)
 
         # careers page → hiring intent
         if self.wants("HIRING_ROLE"):
-            curl, chtml = await self._first_present(site, CAREERS_PATHS)
+            curl, chtml = await self._find_page(site, home, "careers")
             if chtml:
                 roles = []
                 for m in re.finditer(
@@ -487,7 +725,13 @@ class ProfileCollector:
                     t = re.sub(r"\s+", " ", m.group(2)).strip()
                     if re.search(r"\b(hiring|apply|position|opening|wanted|"
                                  r"technician|installer|sales|manager|foreman|"
-                                 r"estimator|crew|representative)\b", t, re.I):
+                                 r"estimator|crew|representative|"
+                                 r"buscamos|se\s+busca|incorporamos|vacante|oferta|"
+                                 r"puesto|t[eé]cnic[oa]|comercial|administrativ[oa]|"
+                                 r"recepcionista|conductor[a]?|mozo|carretiller[oa]|"
+                                 r"jef[ea]\s+de|responsable\s+de|auxiliar|"
+                                 r"dependient[ea]|camarer[oa]|cociner[oa]|"
+                                 r"fisioterapeuta|higienista|operari[oa])\b", t, re.I):
                         if t.lower() not in [r.lower() for r in roles]:
                             roles.append(t)
                     if len(roles) >= 3:
@@ -497,16 +741,25 @@ class ProfileCollector:
 
         # team page → people
         if self.wants("CONTACT_FOUND") or self.wants("DECISION_MAKER_TITLE"):
-            turl, thtml = await self._first_present(site, TEAM_PATHS)
+            turl, thtml = await self._find_page(site, home, "team")
+            found = []                                   # (person, evidence url)
             if thtml:
-                for person in self.detect_people(thtml):
-                    label = f"{person['first_name']} {person['last_name']}"
-                    add("CONTACT_FOUND",
-                        text=f"{label} — {person['title']}" if person["title"] else label,
-                        url=turl)
-                    if person["is_decision_maker"]:
-                        add("DECISION_MAKER_TITLE",
-                            text=f"{label} — {person['title']}", url=turl)
+                found += [(p, turl) for p in self.detect_people(thtml)]
+                found += [(p, turl) for p in self.detect_owner_mentions(thtml, domain)]
+            # Small businesses often sign the homepage instead of having a team page.
+            found += [(p, site) for p in self.detect_owner_mentions(home, domain)]
+            seen = set()
+            for person, url in found:
+                label = f"{person['first_name']} {person['last_name']}"
+                if label.lower() in seen:
+                    continue
+                seen.add(label.lower())
+                add("CONTACT_FOUND",
+                    text=f"{label} — {person['title']}" if person["title"] else label,
+                    url=url)
+                if person["is_decision_maker"]:
+                    add("DECISION_MAKER_TITLE",
+                        text=f"{label} — {person['title']}", url=url)
 
         return obs
 
@@ -533,36 +786,48 @@ class ProfileCollector:
         except Exception as e:
             logger.debug(f"mark_company_profiled failed for {company_id}: {e}")
 
-    async def run(self, companies: list[dict], run_id: str = "") -> int:
+    async def run(self, companies: list[dict], run_id: str = "",
+                  concurrency: int = 1) -> int:
         """Profile many businesses, flushing observations after each one.
 
         Flush-per-item is deliberate: the observations are the asset, and a
-        long run that dies must not take them with it.
+        long run that dies must not take them with it. With ``concurrency``
+        above 1, several sites are read at once (each a different business,
+        so no site sees more traffic) while the database writes stay in one
+        place, one company at a time.
         """
+        gate = asyncio.Semaphore(max(concurrency, 1))
+
+        async def read(company: dict):
+            domain = company["domain"].strip()
+            async with gate:
+                try:
+                    obs = await self.profile_company(company["id"], domain)
+                except Exception as e:
+                    logger.warning(f"profile failed for {domain}: {e}")
+                    obs = None
+                await asyncio.sleep(random.uniform(0.4, 1.2))
+            return company, domain, obs
+
+        todo = [c for c in companies if (c.get("domain") or "").strip()]
         total = 0
-        for company in companies:
-            domain = (company.get("domain") or "").strip()
-            if not domain:
-                continue
-            try:
-                obs = await self.profile_company(company["id"], domain)
-            except Exception as e:
-                logger.warning(f"profile failed for {domain}: {e}")
-                await self._mark_checked(company["id"])
-                continue
+        for done in asyncio.as_completed([read(c) for c in todo]):
+            company, domain, obs = await done
             # Marked regardless of outcome — an unreachable site still counts
             # as checked, or the same handful gets retried every cycle
             # forever instead of rotating through the rest of the backlog.
             await self._mark_checked(company["id"])
+            if obs is None:
+                continue
             await self._improve_name(company, domain)
             if obs:
                 total += await self.state.add_observations(obs, run_id=run_id)
                 logger.info(f"profile: {domain} → {len(obs)} observation(s)")
-            await asyncio.sleep(random.uniform(0.4, 1.2))
         return total
 
 
-async def profile_companies(state, companies: list[dict]) -> tuple[int, str]:
+async def profile_companies(state, companies: list[dict],
+                            concurrency: int = 1) -> tuple[int, str]:
     """Convenience entry point: opens a run, profiles, closes the run."""
     from harvey.signals import seed_signal_catalog
     await seed_signal_catalog(state)
@@ -576,7 +841,7 @@ async def profile_companies(state, companies: list[dict]) -> tuple[int, str]:
     run_id = await state.start_run("profile", provider="http")
     try:
         async with ProfileCollector(state, confirmed) as collector:
-            n = await collector.run(companies, run_id=run_id)
+            n = await collector.run(companies, run_id=run_id, concurrency=concurrency)
         await state.finish_run(run_id, records=n, cost_usd=0.0)
         return n, run_id
     except Exception as e:
